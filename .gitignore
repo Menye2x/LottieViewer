@@ -1,0 +1,22 @@
+# Operating system files
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Editor and IDE settings
+.vscode/
+.idea/
+*.suo
+*.user
+
+# Temporary and log files
+*.log
+*.tmp
+*.temp
+*.bak
+.syntax-check-*.js
+
+# Dependency and generated output directories (if added later)
+node_modules/
+dist/
+build/

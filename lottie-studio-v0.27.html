@@ -1,0 +1,818 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Lottie Studio Prototype Ver. 0.30</title>
+<!--
+APP UPDATE HISTORY
+
+v0.30
+- Added tab-session autosave/restore for the loaded animation, edits, and preview settings.
+- Resizing the composition canvas translates its top-level layers together to keep the original group center aligned to the new canvas center.
+
+v0.29
+- Switched main and export preview playback to the same official dotLottie Web runtime used by LottieFiles Preview.
+- Reworked player controls and frame capture for its canvas renderer.
+
+v0.28
+- Reworked the main player lifecycle around explicit loading, ready, and playing states.
+- Removed localStorage animation/UI restoration and autosave paths that could revive stale player state.
+- JSON imports now rely on the .json extension, independent of browser-provided MIME type.
+- Main and export previews use the full open-source Lottie Web renderer.
+- dotLottie deflate parsing now has a browser-independent open-source fallback and checks archive size limits.
+
+v0.27
+- Upgraded the renderer to the full open-source Lottie Web build for broader JSON feature support, including expressions.
+- Added a CDN fallback and visible loading/ready state for imported animations.
+- Play now seeks explicitly from the current frame before starting playback.
+
+v0.26
+- Imported JSON and dotLottie files now open stopped at their first frame; playback starts only after the user presses Play.
+- Added Refresh Animation to rebuild the main player from the currently loaded animation data and start playback.
+
+v0.25
+- Main canvas playback now starts explicitly after Lottie finishes loading the SVG renderer.
+- Import resets playback speed to normal and starts from the correct first or last frame.
+- Background color fills only the composition viewport; the surrounding stage stays checkerboard.
+
+v0.24
+- Import previews always loop so short animations do not settle on a still frame.
+- Export preview loops continuously while the chosen output loop count remains applied to the exported file.
+- Normalized saved preview speed values to prevent a stale zero-speed setting from freezing both previews.
+- Updated the copyright name to Menye2x.
+
+v0.23
+- Main canvas and export preview now seek and start playback with goToAndPlay(), so imported keyframes begin moving immediately.
+
+v0.22
+- Imported JSON and .lottie animations now autoplay after the renderer is ready, even when reduced motion is enabled.
+- Reverse playback starts at the final frame so imported animations do not appear frozen at frame zero.
+- The export modal's independent live preview also plays when reduced motion is enabled.
+
+v0.21
+- Fixed GIF/WebP settings failing before the export dialog opened: delayPlan now uses a mutable error accumulator.
+- The dedicated export dialog opens before settings and preview are initialized, and reports initialization failures inside the dialog.
+- Prevented duplicate export-dialog opens and cleans up its independent Lottie preview on close.
+
+v0.20
+- GIF/WebP export uses a dedicated modal with an independent Lottie preview instance; the main canvas remains untouched while the export settings are open.
+- Removed the export callback/polling lifecycle that could crash or prevent the modal from opening.
+- Export modal controls and preview are now isolated from the generic confirmation dialog.
+
+v0.17
+- GIF/WebP export modal now reuses the existing generic dialog, with no duplicate export dialog/function lifecycle.
+- Export settings follow the proven v0.4 modal structure and the live preview is activated after the modal opens.
+- Export setting initialization is normalized to avoid assignment/undefined-value errors.
+
+v0.7
+- Export popup preview now uses a native Lottie playback instance with the selected/effective FPS
+- Preview timeline is rescaled to preserve the original animation duration at the export FPS
+- Wider export dialog for a more comfortable preview and settings layout
+
+v0.9
+- Export GIF / WebP button temporarily disabled.
+
+v0.8
+- GIF/WebP frame delays are now distributed per frame to preserve the intended total playback duration at high FPS
+- GIF 60 fps no longer falls back to a fixed 20 ms delay; 10/20 ms delays are distributed to average 60 fps
+- WebP uses distributed 16/17 ms delays at 60 fps to keep playback duration synchronized
+
+v0.6
+- Export popup preview now uses requestAnimationFrame with continuous subframe playback for smooth high-FPS preview
+- Preview timing remains synchronized to the encoded playback duration/effective FPS
+
+v0.5
+- Export preview now uses the selected export FPS and sampled frame count, eliminating FPS/preview timing mismatch
+- Export preview shows frame count, playback duration, total loop duration, and estimated file size
+- Added export loop count: 1x, 2x, 3x, or Auto-loop (infinity)
+- GIF and animated WebP loop metadata now follows the selected loop count
+
+v0.15
+ - GIF/WebP export now uses a dedicated native dialog, separated from the general confirm dialog.
+ - Export settings and live preview are mounted before the dialog is shown, preventing the popup from failing to appear.
+ - Cancel / Escape reliably destroy the temporary preview instance and close the export dialog.
+
+v0.14
+ - Export GIF/WebP dialog reliably opens before preview mounting; popup is wider
+ - Main preview now presents the Lottie composition inside a viewport sized to the composition aspect ratio/logical canvas
+
+v0.4
+- Export popup now has a live looping preview that follows background color and transparency in real time
+- Popup scrolls on small screens
+
+v0.3
+- Added Export GIF and animated WebP (own GIF/LZW encoder and WebP muxer, no library)
+- Export settings: width, fps, quality, background color, transparency (WebP only)
+- Progress bar with cancel while rendering frames
+
+v0.2
+- Added dotLottie (.lottie) import and export (native ZIP reader/writer, no extra library)
+- Embedded images inside .lottie are inlined as data URIs; unpack size limits added
+
+v0.1
+- Initial build: Lottie viewer (play, scrub, speed, loop, reverse, background)
+- Editor: composition settings, palette recolor, layer visibility, raw JSON
+- Import validation, export preview, autosave, light/dark theme, online status
+
+Notes: uses @lottiefiles/dotlottie-web (MIT), the official LottieFiles web runtime for JSON and dotLottie.
+-->
+<link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+<link rel="preload" as="fetch" crossorigin href="https://cdn.jsdelivr.net/npm/@lottiefiles/dotlottie-web@0.80.0/dist/dotlottie-player.wasm">
+<script type="module">
+(async()=>{try{let m;try{m=await import('https://cdn.jsdelivr.net/npm/@lottiefiles/dotlottie-web@0.80.0/+esm')}catch(_e){m=await import('https://esm.sh/@lottiefiles/dotlottie-web@0.80.0')}window.DotLottie=m.DotLottie;window.dispatchEvent(new Event('dotlottie-ready'))}catch(e){window.dotLottieLoadError=e;window.dispatchEvent(new Event('dotlottie-error'))}})();
+</script>
+<style>
+:root{--bg:#f3f4f8;--surface:#fff;--text:#14161c;--muted:#454b5e;--border:#b9bfd0;--primary:#4338ca;--on-primary:#fff;--danger:#b42318;--chk:#e3e6ee;--ok:#12805c;--bad:#b42318;--shadow:0 2px 10px rgba(20,22,40,.08);
+box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0f1117;--surface:#181b24;--text:#eef0f6;--muted:#b3b9cc;--border:#4a5168;--primary:#a5b4fc;--on-primary:#0f1117;--danger:#ff8a80;--chk:#232736;--ok:#5fd3a6;--bad:#ff8a80;--shadow:none}}
+:root[data-theme="dark"]{--bg:#0f1117;--surface:#181b24;--text:#eef0f6;--muted:#b3b9cc;--border:#4a5168;--primary:#a5b4fc;--on-primary:#0f1117;--danger:#ff8a80;--chk:#232736;--ok:#5fd3a6;--bad:#ff8a80;--shadow:none}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*,*::before,*::after{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:16px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;min-height:100vh;display:flex;flex-direction:column}
+button,input,textarea{font:inherit;color:inherit}
+.bar{position:sticky;top:env(safe-area-inset-top,0px);z-index:20;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 16px;background:var(--surface);border-bottom:1px solid var(--border)}
+h1{margin:0;font-size:1.25rem;line-height:1.25;text-align:center}
+h1 small{display:block;font-size:.8rem;font-weight:500;color:var(--muted)}
+h2{margin:0;font-size:1rem}
+#net{display:inline-flex;gap:6px;align-items:center;font-size:.9rem;font-weight:600;white-space:nowrap}
+#net.on i{color:var(--ok)}#net.off i{color:var(--bad)}
+.btn{min-height:44px;padding:0 14px;border:1px solid var(--border);background:var(--surface);border-radius:10px;cursor:pointer;font-weight:600;transition:transform .12s,background .12s}
+.btn:hover{background:var(--chk)}.btn:active{transform:translateY(1px)}
+.btn.primary{background:var(--primary);color:var(--on-primary);border-color:var(--primary)}
+.btn.primary:hover{filter:brightness(1.08)}
+.btn.danger{color:var(--danger);border-color:var(--danger)}
+.btn:disabled{opacity:.55;cursor:not-allowed}
+:focus-visible{outline:3px solid var(--primary);outline-offset:2px}
+main{flex:1;width:100%;max-width:1200px;margin:0 auto;padding:16px;display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:16px;align-items:start}
+@media (max-width:860px){main{grid-template-columns:1fr}}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:14px;box-shadow:var(--shadow)}
+.row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.stage{position:relative;height:min(58vh,520px);margin:12px 0;border:1px solid var(--border);border-radius:12px;overflow:hidden;background-image:conic-gradient(var(--chk) 25%,transparent 0 50%,var(--chk) 0 75%,transparent 0);background-size:20px 20px}
+.stage.drag{outline:3px dashed var(--primary);outline-offset:-6px}
+.viewport{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);display:flex;align-items:center;justify-content:center;overflow:hidden;border:1px solid var(--border);background:transparent;box-shadow:0 0 0 1px rgba(0,0,0,.04)}
+#player{width:100%;height:100%}
+#player canvas{display:block;width:100%;height:100%}
+.loadstate{position:absolute;z-index:2;left:10px;top:10px;padding:7px 10px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text);font-size:.85rem;box-shadow:0 2px 8px rgba(0,0,0,.12)}
+#err{position:absolute;inset:0;display:grid;place-content:center;text-align:center;padding:20px;background:var(--surface)}
+[hidden]{display:none!important}
+label{font-size:.9rem;font-weight:600}
+.field{display:flex;flex-direction:column;gap:4px}
+input[type=number],input[type=text],textarea{width:100%;min-height:44px;padding:8px 10px;border:1px solid var(--border);border-radius:8px;background:var(--bg)}
+input[type=color]{width:44px;height:44px;padding:2px;border:1px solid var(--border);border-radius:8px;background:var(--bg);cursor:pointer}
+input[type=range]{flex:1;min-width:120px;accent-color:var(--primary);height:44px}
+textarea{font:13px/1.4 ui-monospace,Menlo,Consolas,monospace;min-height:200px;resize:vertical}
+.chk{display:inline-flex;gap:6px;align-items:center;min-height:44px}
+.chk input{width:20px;height:20px;accent-color:var(--primary)}
+details{border-top:1px solid var(--border);padding:6px 0}details:first-of-type{border-top:0}
+summary{cursor:pointer;min-height:44px;display:flex;align-items:center;font-weight:700}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.sw{display:flex;align-items:center;gap:10px;min-height:48px}
+.sw code{font-size:.9rem}.muted{color:var(--muted);font-size:.85rem}
+ul{list-style:none;margin:0;padding:0}
+.lay{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:4px 0;border-bottom:1px solid var(--border)}
+.lay.off span{text-decoration:line-through;color:var(--muted)}
+.info{width:24px;height:24px;border-radius:50%;border:1px solid var(--border);background:var(--surface);cursor:pointer;font-size:.75rem;font-weight:700;line-height:1;margin-left:4px}
+#pop{position:fixed;z-index:50;max-width:260px;padding:10px 12px;background:var(--text);color:var(--bg);border-radius:8px;font-size:.85rem}
+#toasts{position:fixed;z-index:60;right:12px;bottom:calc(12px + env(safe-area-inset-bottom,0px));display:flex;flex-direction:column;gap:8px;max-width:min(360px,calc(100vw - 24px))}
+.toast{padding:10px 14px;border-radius:10px;background:var(--text);color:var(--bg);font-weight:600;box-shadow:0 4px 16px rgba(0,0,0,.25)}
+dialog{max-height:calc(100vh - 24px);overflow:auto;z-index:70;max-width:min(440px,calc(100vw - 24px));width:100%;border:1px solid var(--border);border-radius:14px;background:var(--surface);color:var(--text);padding:20px}
+#imgDlg{max-width:min(760px,calc(100vw - 24px))}
+dialog::backdrop{background:rgba(10,12,20,.6)}
+dialog p{margin:6px 0}
+footer{text-align:center;padding:16px;color:var(--muted);font-size:.9rem}
+footer a{color:var(--primary);font-weight:600}
+select{width:100%;min-height:44px;padding:8px 10px;border:1px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text)}
+.pv{margin:0 auto 12px;border:1px solid var(--border);border-radius:10px;overflow:hidden;background-image:conic-gradient(var(--chk) 25%,transparent 0 50%,var(--chk) 0 75%,transparent 0);background-size:20px 20px;min-height:80px}
+.prog{position:fixed;z-index:65;left:12px;bottom:calc(12px + env(safe-area-inset-bottom,0px));display:flex;gap:10px;align-items:center;padding:10px 14px;background:var(--surface);border:1px solid var(--border);border-radius:12px;box-shadow:0 4px 16px rgba(0,0,0,.25)}
+.prog progress{accent-color:var(--primary);width:120px}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+<header class="bar">
+  <button class="btn" id="theme" type="button" aria-label="Toggle light or dark theme">Dark</button>
+  <h1>Lottie Studio <small>Prototype Ver. 0.30</small></h1>
+  <span id="net" class="on" role="status"><i aria-hidden="true">●</i><span id="netT">Online</span></span>
+</header>
+
+<main>
+  <section class="card" aria-label="Viewer">
+    <div class="row">
+      <button class="btn primary" id="imp" type="button">Import File</button>
+      <button class="btn" id="sample" type="button">Load Sample</button>
+      <button class="btn" id="copy" type="button">Copy JSON</button>
+      <button class="btn" id="exp" type="button">Export JSON</button>
+      <button class="btn" id="expl" type="button">Export .lottie</button>
+      <button class="btn" id="expi" type="button" aria-label="Export GIF or animated WebP">Export GIF / WebP</button>
+      <button class="btn danger" id="reset" type="button">Reset Changes</button>
+      <input id="file" type="file" accept=".json,.lottie,.dotlottie,application/json" hidden>
+    </div>
+    <div class="stage" id="stage" role="img" aria-label="Animation preview. Drop a Lottie .json or .lottie file here to import.">
+      <div class="viewport" id="viewport">
+        <div id="player"></div>
+      </div>
+      <div class="loadstate" id="loadState" role="status" aria-live="polite" hidden>Loading animation…</div>
+      <div id="err" role="alert" hidden><div><strong>Lottie renderer could not load</strong><p class="muted">Check your internet connection, then reload this page.</p></div></div>
+    </div>
+    <div class="row">
+      <button class="btn primary" id="play" type="button">Play</button>
+      <button class="btn" id="refreshAnim" type="button">Refresh Animation</button>
+      <button class="btn" id="stop" type="button">Stop</button>
+      <input id="scrub" type="range" min="0" max="1" step="1" value="0" aria-label="Frame scrubber">
+      <output id="fr" class="muted" aria-live="off">0 / 0</output>
+    </div>
+    <div class="row">
+      <label for="speed">Speed <button class="info" type="button" data-t="speed" aria-label="About speed" aria-expanded="false">i</button></label>
+      <input id="speed" type="range" min="10" max="300" step="1" value="100">
+      <output id="spv">100%</output>
+      <label class="chk"><input id="loop" type="checkbox" checked> Loop</label>
+      <label class="chk"><input id="rev" type="checkbox"> Reverse</label>
+    </div>
+    <div class="row">
+      <label for="bg">Background</label>
+      <input id="bg" type="color" value="#ffffff">
+      <label class="chk"><input id="tr" type="checkbox" checked> Transparent</label>
+    </div>
+  </section>
+
+  <aside class="card" aria-label="Editor">
+    <details open>
+      <summary>Composition</summary>
+      <div class="grid2" id="comp">
+        <div class="field"><label for="c-fr">Frame rate <button class="info" type="button" data-t="fr" aria-label="About frame rate" aria-expanded="false">i</button></label><input id="c-fr" type="number" data-k="fr" min="1" max="120" step="1"></div>
+        <div class="field"><label for="c-n">Frames</label><input id="c-n" type="number" data-k="n" min="1" max="10000" step="1"></div>
+        <div class="field"><label for="c-w">Width (px)</label><input id="c-w" type="number" data-k="w" min="1" max="4096" step="1"></div>
+        <div class="field"><label for="c-h">Height (px)</label><input id="c-h" type="number" data-k="h" min="1" max="4096" step="1"></div>
+      </div>
+      <p class="muted" id="meta"></p>
+    </details>
+    <details open>
+      <summary>Palette <button class="info" type="button" data-t="pal" aria-label="About palette" aria-expanded="false">i</button></summary>
+      <ul id="pal"></ul>
+    </details>
+    <details>
+      <summary>Layers</summary>
+      <ul id="lay"></ul>
+    </details>
+    <details id="jd">
+      <summary>Raw JSON</summary>
+      <label for="json" class="muted">Edit the Lottie JSON directly, then apply.</label>
+      <textarea id="json" spellcheck="false"></textarea>
+      <div class="row" style="margin-top:8px"><button class="btn primary" id="apply" type="button">Apply JSON</button></div>
+    </details>
+  </aside>
+</main>
+
+<footer>
+  <div>Created by <a href="https://github.com/Menye2x" target="_blank" rel="noopener noreferrer">menye2x</a></div>
+  <div>©2026 Menye2x. All rights reserved.</div>
+</footer>
+
+<div id="pop" role="tooltip" hidden></div>
+<div id="prog" class="prog" role="status" hidden><span id="progT">Rendering</span><progress id="progB" max="100" value="0"></progress><button class="btn" id="progX" type="button">Cancel</button></div>
+<div id="toasts" role="status" aria-live="polite"></div>
+<dialog id="dlg" aria-labelledby="dlgT">
+  <h2 id="dlgT"></h2><div id="dlgB"></div>
+  <div class="row" style="justify-content:flex-end;margin-top:14px">
+    <button class="btn" id="dlgNo" type="button">Cancel</button>
+    <button class="btn primary" id="dlgOk" type="button">Confirm</button>
+  </div>
+</dialog>
+<dialog id="imgDlg" aria-labelledby="imgDlgT">
+  <h2 id="imgDlgT">Export GIF / WebP</h2>
+  <div id="imgDlgB"></div>
+  <div class="row" style="justify-content:flex-end;margin-top:14px">
+    <button class="btn" id="imgDlgNo" type="button">Cancel</button>
+    <button class="btn primary" id="imgDlgOk" type="button">Start Export</button>
+  </div>
+</dialog>
+<script>
+(()=>{
+'use strict';
+const $=s=>document.querySelector(s);
+const SESSION_KEY='lottie-studio:session:v2:'+location.pathname;
+const ui={theme:'',speed:100,loop:true,rev:false,bg:'#ffffff',tr:true,x:{fmt:'gif',bg:'#ffffff',tr:true,q:90,loops:0}};
+const S={data:null,name:'bouncing-ball.json',orig:'',anim:null,player:null,sourceBinary:null,edited:false,ready:false,playing:false};
+const tw=(t,v)=>({a:1,k:t.map((s,i)=>({t:s,s:v[i],i:{x:.5,y:1},o:{x:.5,y:0}}))});
+const SAMPLE=()=>{const grp=(sh,col)=>({ty:'gr',nm:'Group',it:[sh,{ty:'fl',nm:'Fill',c:{a:0,k:col},o:{a:0,k:100},r:1},{ty:'tr',p:{a:0,k:[0,0]},a:{a:0,k:[0,0]},s:{a:0,k:[100,100]},r:{a:0,k:0},o:{a:0,k:100}}]});
+const L=(i,nm,ks,sh,col)=>({ddd:0,ind:i,ty:4,nm,sr:1,ks,ao:0,shapes:[grp(sh,col)],ip:0,op:60,st:0,bm:0});
+const st=(p,s)=>({o:{a:0,k:100},r:{a:0,k:0},p,a:{a:0,k:[0,0,0]},s});
+return{v:'5.7.0',fr:30,ip:0,op:60,w:400,h:400,nm:'Bouncing Ball',ddd:0,assets:[],layers:[
+L(1,'Ball',st({a:1,k:[{t:0,s:[200,110,0],i:{x:.55,y:1},o:{x:.45,y:0}},{t:30,s:[200,285,0],i:{x:.55,y:1},o:{x:.45,y:0}},{t:60,s:[200,110,0]}]},tw([0,26,30,34,60],[[100,100,100],[100,100,100],[125,75,100],[100,100,100],[100,100,100]])),{ty:'el',nm:'Ellipse',s:{a:0,k:[100,100]},p:{a:0,k:[0,0]}},[.35,.4,.95,1]),
+L(2,'Ground',st({a:0,k:[200,345,0]},{a:0,k:[100,100,100]}),{ty:'rc',nm:'Rect',s:{a:0,k:[280,10]},p:{a:0,k:[0,0]},r:{a:0,k:5}},[.12,.72,.66,1])]}};
+
+const clampInt=(v,a,b)=>{let n=parseFloat(String(v).replace(',','.'));if(!isFinite(n))n=a;return Math.min(b,Math.max(a,Math.round(n)))};
+const toHex=c=>'#'+c.slice(0,3).map(n=>Math.round(Math.min(1,Math.max(0,n))*255).toString(16).padStart(2,'0')).join('');
+const fromHex=h=>[1,3,5].map(i=>parseInt(h.slice(i,i+2),16)/255);
+const P=t=>{const p=document.createElement('p');p.textContent=t;return p};
+const cleanName=(n,ext='.json')=>{n=String(n||'animation').replace(/\.(json|lottie|dotlottie)$/i,'').replace(/[^\w\- ]+/g,'_').replace(/^[_.\s]+/,'').slice(0,60)||'animation';return n+ext};
+
+function toast(msg,type='info'){const box=$('#toasts'),t=document.createElement('div');t.className='toast';t.textContent=({ok:'✓ ',error:'✕ ',warn:'⚠ ',info:'ℹ '})[type]+msg;box.append(t);while(box.children.length>3)box.firstChild.remove();setTimeout(()=>t.remove(),type==='error'?5000:2500)}
+let sessionTimer=0;
+function flushSession(){try{if(S.data)sessionStorage.setItem(SESSION_KEY,JSON.stringify({v:2,d:S.data,n:S.name,o:S.orig,u:ui}))}catch(_e){}}
+function saveSession(){clearTimeout(sessionTimer);sessionTimer=setTimeout(()=>{try{flushSession()}catch(e){toast('Session autosave failed. The browser storage may be full.','warn')}},180)}
+function restoreSession(){try{const raw=sessionStorage.getItem(SESSION_KEY);if(!raw)return false;const j=JSON.parse(raw);if(j.v!==2||validate(j.d))return false;S.data=j.d;S.name=j.n||S.name;S.orig=j.o||JSON.stringify(j.d);S.sourceBinary=null;S.edited=true;if(j.u&&typeof j.u==='object')Object.assign(ui,j.u);return true}catch(_e){return false}}
+const dlg=$('#dlg');
+function ask(title,body,ok='Confirm',danger=false){return new Promise(res=>{$('#dlgT').textContent=title;$('#dlgB').replaceChildren(body);const yes=$('#dlgOk'),no=$('#dlgNo');yes.textContent=ok;yes.className='btn '+(danger?'danger':'primary');let done=false,result=false;const finish=()=>{if(done)return;done=true;yes.onclick=null;no.onclick=null;dlg.onclose=null;res(result)};yes.onclick=()=>{result=true;dlg.close()};no.onclick=()=>dlg.close();dlg.onclose=finish;try{if(dlg.open)dlg.close();dlg.showModal()}catch(e){toast('Unable to open dialog. '+(e.message||'Dialog error.'),'error');finish()}})}
+
+function validate(d){if(!d||typeof d!=='object'||Array.isArray(d))return 'Not a Lottie JSON object.';
+for(const k of['w','h','fr','ip','op'])if(typeof d[k]!=='number'||!isFinite(d[k]))return 'Missing numeric "'+k+'".';
+if(d.w<1||d.h<1||d.fr<1||d.op<=d.ip)return 'Invalid size, frame rate, or frame range.';
+if(!Array.isArray(d.layers))return 'Missing "layers" array.';return ''}
+function blockRemote(d){let n=0;(d.assets||[]).forEach(a=>{if(a&&(/^(https?:)?\/\//i.test(a.p||'')||/^(https?:)?\/\//i.test(a.u||''))){a.p='';a.u='';n++}});return n}
+
+function colorMap(d){const m=new Map();(function w(o){if(Array.isArray(o)){o.forEach(w);return}if(o&&typeof o==='object'){if((o.ty==='fl'||o.ty==='st')&&o.c&&o.c.a===0&&Array.isArray(o.c.k)&&o.c.k.length>=3&&o.c.k.every(n=>typeof n==='number')){const h=toHex(o.c.k);if(!m.has(h))m.set(h,[]);m.get(h).push(o.c)}Object.values(o).forEach(w)}})(d);return m}
+function cloneData(d){return typeof structuredClone==='function'?structuredClone(d):JSON.parse(JSON.stringify(d))}
+function preview(){const d=cloneData(S.data);d.layers.forEach(l=>{if(l.hd){l.ks=l.ks||{};l.ks.o={a:0,k:0}}});return d}
+function offsetPositionProp(p,delta,axis=-1){if(!p||!delta)return;if(p.s===true){offsetPositionProp(p.x,[delta[0]],0);offsetPositionProp(p.y,[delta[1]],1);return}const shift=v=>{if(Array.isArray(v)){if(axis===0&&typeof v[0]==='number')v[0]+=delta[0]||0;else if(axis===1&&typeof v[0]==='number')v[0]+=delta[0]||0;else{if(v.length>0&&typeof v[0]==='number')v[0]+=delta[0]||0;if(v.length>1&&typeof v[1]==='number')v[1]+=delta[1]||0}}else if(axis>=0&&typeof v==='number')return v+(delta[0]||0);return v};if(p.a===1&&Array.isArray(p.k)){p.k.forEach(k=>{if(k&&typeof k==='object'){if(axis>=0){if(Array.isArray(k.s))k.s=shift(k.s);else if(typeof k.s==='number')k.s=shift(k.s);if(Array.isArray(k.e))k.e=shift(k.e);else if(typeof k.e==='number')k.e=shift(k.e)}else{shift(k.s);shift(k.e)}}})}else if(axis>=0){if(Array.isArray(p.k))p.k=shift(p.k);else if(typeof p.k==='number')p.k=shift(p.k)}else shift(p.k)}
+function centerRootLayers(layers,dx,dy){if(!Array.isArray(layers)||(!dx&&!dy))return;const childIndices=new Set(layers.map(l=>l.parent).filter(v=>v!=null));for(const l of layers){if(childIndices.has(l.ind))continue;if(l.ks&&l.ks.p)offsetPositionProp(l.ks.p,[dx,dy])}}
+
+function fitViewport(){const stage=$('#stage'),vp=$('#viewport'),d=S.data;if(!stage||!vp||!d)return;const sw=Math.max(1,stage.clientWidth-24),sh=Math.max(1,stage.clientHeight-24),scale=Math.min(sw/d.w,sh/d.h);const w=Math.max(1,Math.round(d.w*scale)),h=Math.max(1,Math.round(d.h*scale));vp.style.width=w+'px';vp.style.height=h+'px';vp.setAttribute('aria-label','Animation canvas '+d.w+'×'+d.h+' px');}
+function btn(){const a=S.anim;S.playing=!!(a&&S.ready&&!a.isPaused);$('#play').textContent=S.playing?'Pause':'Play';$('#play').disabled=!S.ready}
+function mount(frame,play){
+  if(S.anim){try{S.anim.destroy()}catch(_e){}}
+  S.anim=null;S.player=null;S.ready=false;S.playing=false;btn();
+  const err=!window.DotLottie;$('#err').hidden=!err;if(err){$('#loadState').hidden=true;return}
+  $('#loadState').textContent='Loading animation…';$('#loadState').hidden=false;
+  const host=$('#player');host.replaceChildren();const canvas=document.createElement('canvas');canvas.width=Math.max(1,Math.round(S.data.w));canvas.height=Math.max(1,Math.round(S.data.h));canvas.setAttribute('aria-label','Lottie animation canvas');host.append(canvas);
+  let engine;
+  const playerData=S.sourceBinary&&!S.edited?S.sourceBinary:JSON.stringify(preview());
+  try{engine=new DotLottie({canvas,data:playerData,autoplay:false,loop:ui.loop,speed:clampInt(ui.speed,10,300)/100,mode:ui.rev?'reverse':'forward',layout:{fit:'contain',align:[.5,.5]},renderConfig:{autoResize:false,devicePixelRatio:1,freezeOnOffscreen:false}})}catch(e){host.replaceChildren();$('#loadState').hidden=true;toast('Could not create the LottieFiles player. '+(e.message||'Renderer error.'),'error');return}
+  S.player=engine;
+  const a={get currentFrame(){return engine.currentFrame},get totalFrames(){return engine.totalFrames},get isPaused(){return !engine.isPlaying},get loop(){return engine.loop},set loop(v){engine.setLoop(!!v)},setSpeed(v){engine.setSpeed(v)},setDirection(v){engine.setMode(v<0?'reverse':'forward')},play(){engine.play()},pause(){engine.pause()},goToAndStop(f){engine.pause();engine.setFrame(f)},goToAndPlay(f){engine.setFrame(f);engine.play()},destroy(){engine.destroy()}};
+  S.anim=a;
+  const watch=setTimeout(()=>{if(S.anim===a&&!$('#loadState').hidden)$('#loadState').textContent='Still loading…'},1800);
+  const sync=e=>{if(S.anim!==a)return;const f=Number.isFinite(e&&e.currentFrame)?e.currentFrame:engine.currentFrame;$('#scrub').value=Math.round(f);$('#fr').textContent=Math.round(f)+' / '+Math.round(engine.totalFrames);btn()};
+  engine.addEventListener('frame',sync);engine.addEventListener('render',sync);engine.addEventListener('complete',()=>{if(S.anim===a)btn()});engine.addEventListener('loop',()=>{if(S.anim===a)btn()});
+  engine.addEventListener('loadError',e=>{if(S.anim!==a)return;clearTimeout(watch);S.ready=false;$('#loadState').hidden=true;btn();toast('LottieFiles player could not render this file. '+(e&&e.error&&e.error.message||''),'error')});
+  engine.addEventListener('load',()=>{
+    if(S.anim!==a)return;
+    clearTimeout(watch);$('#loadState').hidden=true;S.ready=true;
+    const last=Math.max(0,engine.totalFrames-1),start=Math.max(0,Math.min(Math.round(frame),last));
+    $('#scrub').max=Math.max(1,Math.round(engine.totalFrames));engine.setFrame(start);
+    if(play)engine.play();sync();btn();
+  });
+}
+function refresh(){
+  const d=S.data;
+  fitViewport();
+  $('#c-fr').value=d.fr;$('#c-n').value=Math.round(d.op-d.ip);$('#c-w').value=d.w;$('#c-h').value=d.h;
+  $('#meta').textContent=(d.nm||S.name)+' · '+d.layers.length+' layers · '+(d.op-d.ip)/d.fr+'s'.replace('NaN','');
+  const pal=$('#pal');pal.replaceChildren();const cm=colorMap(d);
+  if(!cm.size)pal.append(Object.assign(document.createElement('li'),{className:'muted',textContent:'No static fill or stroke colors found.'}));
+  cm.forEach((refs,h)=>{const li=document.createElement('li');li.className='sw';const i=document.createElement('input');i.type='color';i.value=h;i.dataset.h=h;i.setAttribute('aria-label','Recolor '+h);const c=document.createElement('code');c.textContent=h;const n=document.createElement('span');n.className='muted';n.textContent=refs.length+' used';li.append(i,c,n);pal.append(li)});
+  const lay=$('#lay');lay.replaceChildren();
+  d.layers.forEach((l,k)=>{const li=document.createElement('li');li.className='lay'+(l.hd?' off':'');const s=document.createElement('span');s.textContent=l.nm||'Layer '+(k+1);const b=document.createElement('button');b.className='btn';b.type='button';b.dataset.i=k;b.textContent=l.hd?'Show':'Hide';b.setAttribute('aria-label',(l.hd?'Show ':'Hide ')+s.textContent);li.append(s,b);lay.append(li)});
+  if($('#jd').open)$('#json').value=JSON.stringify(d,null,1);
+}
+function commit(fresh,autoplay=false){const a=S.anim;if(!fresh)S.edited=true;if(fresh&&autoplay===true){ui.loop=true;$('#loop').checked=true}ui.speed=clampInt(ui.speed,10,300);const frames=Math.max(1,Math.round(S.data.op-S.data.ip));const f=!fresh&&a?Math.round(a.currentFrame):(fresh&&ui.rev?frames-1:0);const p=fresh?!!autoplay:!!(a&&!a.isPaused);refresh();mount(f,p);saveSession()}
+function load(d,name,autoplay=false,sourceBinary=null){const e=validate(d);if(e){$('#loadState').hidden=true;toast('Invalid file. '+e,'error');return}const n=blockRemote(d);S.data=d;S.name=cleanName(name);S.orig=JSON.stringify(d);S.sourceBinary=n?null:sourceBinary;S.edited=false;ui.speed=100;$('#speed').value='100';$('#spv').textContent='100%';commit(true,autoplay);if(n)toast(n+' remote image reference(s) blocked for safety.','warn');else toast('Loaded '+S.name,'ok')}
+/* dotLottie (.lottie) = ZIP with manifest.json + animations/*.json */
+const rd=(v,o,n)=>n===2?v.getUint16(o,true):v.getUint32(o,true);
+let fflateLoad=null;
+function loadFflate(){if(window.fflate)return Promise.resolve(window.fflate);if(!fflateLoad)fflateLoad=new Promise((resolve,reject)=>{const s=document.createElement('script');s.src='https://cdn.jsdelivr.net/npm/fflate@0.8.3/umd/index.js';s.onload=()=>window.fflate?resolve(window.fflate):reject(new Error('ZIP decoder did not initialize.'));s.onerror=()=>reject(new Error('Could not load the open-source ZIP decoder.'));document.head.append(s)});return fflateLoad}
+async function inflate(raw,cap){
+  if(typeof DecompressionStream==='function')try{const r=new Blob([raw]).stream().pipeThrough(new DecompressionStream('deflate-raw')).getReader(),ch=[];let n=0;for(;;){const{done,value}=await r.read();if(done)break;n+=value.length;if(n>cap){r.cancel();throw new Error('Archive is too large when unpacked.')}ch.push(value)}return new Uint8Array(await new Blob(ch).arrayBuffer())}catch(e){if(e&&e.message==='Archive is too large when unpacked.')throw e}
+  const lib=await loadFflate(),out=lib.inflateSync(raw);if(out.length>cap)throw new Error('Archive is too large when unpacked.');return out
+}
+async function unzip(buf){const u=new Uint8Array(buf),v=new DataView(buf),td=new TextDecoder();let e=-1;
+  for(let i=u.length-22;i>=Math.max(0,u.length-65557);i--)if(rd(v,i,4)===0x06054b50){e=i;break}
+  if(e<0)throw new Error('Not a valid ZIP archive.');
+  const cnt=rd(v,e+10,2);let p=rd(v,e+16,4),left=30*1024*1024;const out={};
+  if(cnt>300)throw new Error('Too many files in archive.');
+  for(let k=0;k<cnt;k++){if(rd(v,p,4)!==0x02014b50)throw new Error('Corrupt archive.');
+    const m=rd(v,p+10,2),cs=rd(v,p+20,4),us=rd(v,p+24,4),n=rd(v,p+28,2),x=rd(v,p+30,2),c=rd(v,p+32,2),lo=rd(v,p+42,4),name=td.decode(u.subarray(p+46,p+46+n));p+=46+n+x+c;
+    if(name.endsWith('/')||/(^|\/)\.\.(\/|$)|^[\/\\]/.test(name))continue;
+    if(us>left)throw new Error('Archive is too large when unpacked.');
+    const ds=lo+30+rd(v,lo+26,2)+rd(v,lo+28,2),raw=u.subarray(ds,ds+cs);let b;
+    if(m===0)b=raw.slice();else if(m===8)b=await inflate(raw,left);else throw new Error('Unsupported compression in archive.');
+    if(b.length!==us)throw new Error('Archive entry size does not match its ZIP directory.');
+    left-=b.length;if(left<0)throw new Error('Archive is too large when unpacked.');out[name]=b}
+  return out}
+async function readLottie(buf){const files=await unzip(buf),td=new TextDecoder(),J=n=>JSON.parse(td.decode(files[n]));
+  let ids=[];try{ids=(J('manifest.json').animations||[]).map(a=>a.id)}catch(e){}
+  const all=Object.keys(files).filter(n=>/^(animations|a)\/[^\/]+\.json$/.test(n));
+  const path=ids.map(i=>['animations/'+i+'.json','a/'+i+'.json'].find(n=>files[n])).find(Boolean)||all[0];
+  if(!path)throw new Error('No animation found in this .lottie file.');
+  const d=J(path),mime={png:'image/png',jpg:'image/jpeg',jpeg:'image/jpeg',webp:'image/webp',gif:'image/gif'};
+  (d.assets||[]).forEach(a=>{if(!a||typeof a.p!=='string'||a.p.startsWith('data:'))return;
+    const rel=((a.u||'')+a.p).replace(/^\.?\//,''),n=[rel,'i/'+a.p,'images/'+a.p].find(x=>files[x]),ext=a.p.split('.').pop().toLowerCase();
+    if(n&&mime[ext]){let t='';const b=files[n];for(let i=0;i<b.length;i+=8192)t+=String.fromCharCode(...b.subarray(i,i+8192));a.p='data:'+mime[ext]+';base64,'+btoa(t);a.u='';a.e=1}});
+  if(all.length>1)toast('This file has '+all.length+' animations. Loaded the first one.','info');
+  return d}
+const CRC=(()=>{const t=new Uint32Array(256);for(let n=0;n<256;n++){let c=n;for(let k=0;k<8;k++)c=c&1?0xEDB88320^(c>>>1):c>>>1;t[n]=c>>>0}return b=>{let c=~0;for(let i=0;i<b.length;i++)c=t[(c^b[i])&255]^(c>>>8);return ~c>>>0}})();
+function zip(files){const te=new TextEncoder(),parts=[],cd=[];let off=0;
+  files.forEach(([n,b])=>{const nm=te.encode(n),crc=CRC(b),h=new DataView(new ArrayBuffer(30)),c=new DataView(new ArrayBuffer(46));
+    h.setUint32(0,0x04034b50,true);h.setUint16(4,20,true);h.setUint16(6,0x0800,true);h.setUint16(12,0x21,true);h.setUint32(14,crc,true);h.setUint32(18,b.length,true);h.setUint32(22,b.length,true);h.setUint16(26,nm.length,true);
+    c.setUint32(0,0x02014b50,true);c.setUint16(4,20,true);c.setUint16(6,20,true);c.setUint16(8,0x0800,true);c.setUint16(14,0x21,true);c.setUint32(16,crc,true);c.setUint32(20,b.length,true);c.setUint32(24,b.length,true);c.setUint16(28,nm.length,true);c.setUint32(42,off,true);
+    parts.push(h,nm,b);cd.push(c,nm);off+=30+nm.length+b.length});
+  const e=new DataView(new ArrayBuffer(22));e.setUint32(0,0x06054b50,true);e.setUint16(8,files.length,true);e.setUint16(10,files.length,true);e.setUint32(12,cd.reduce((t,x)=>t+x.byteLength,0),true);e.setUint32(16,off,true);
+  return new Blob([...parts,...cd,e],{type:'application/zip'})}
+
+let importSeq=0;
+async function importFile(f){if(!f)return;const seq=++importSeq;
+  const dot=/\.(lottie|dotlottie)$/i.test(f.name);
+  if(!dot&&!/\.json$/i.test(f.name)){$('#loadState').hidden=true;return toast('Unsupported file. Choose a Lottie .json, .lottie, or .dotlottie file.','error')}
+  if(f.size>20*1024*1024){$('#loadState').hidden=true;return toast('Invalid file. The limit is 20 MB.','error')}
+  $('#loadState').textContent=dot?'Reading dotLottie archive…':'Reading Lottie JSON…';$('#loadState').hidden=false;
+  try{let raw=null,d;if(dot){raw=await f.arrayBuffer();d=await readLottie(raw)}else d=JSON.parse((await f.text()).replace(/^\uFEFF/,''));if(seq!==importSeq)return;load(d,f.name,false,raw)}catch(e){if(seq===importSeq){$('#loadState').hidden=true;toast(dot?'Invalid file. '+(e.message||'This is not a valid .lottie archive.'):'Invalid file. '+(e.message||'This is not valid JSON.'),'error')}}}
+
+async function exportFile(kind){const d=S.data,txt=JSON.stringify(d),dot=kind==='lottie',name=cleanName(S.name,dot?'.lottie':'.json'),te=new TextEncoder();
+  const blob=dot?zip([['manifest.json',te.encode(JSON.stringify({version:'1',generator:'Lottie Studio',animations:[{id:'animation'}]}))],['animations/animation.json',te.encode(txt)]]):new Blob([txt],{type:'application/json'});
+  const box=document.createElement('div');
+  ['Filename: '+name,'Format: '+(dot?'dotLottie (ZIP, v1 manifest)':'Lottie JSON'),'Size: '+(blob.size/1024).toFixed(1)+' KB','Layers: '+d.layers.length,'Canvas: '+d.w+'×'+d.h+' px, '+d.fr+' fps, '+Math.round(d.op-d.ip)+' frames'].forEach(t=>box.append(P(t)));
+  if(!await ask('Export Preview',box,'Download'))return;
+  const u=URL.createObjectURL(blob),a=document.createElement('a');a.href=u;a.download=name;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),1000);toast('Download started','ok')}
+
+/*IMG-START*/
+const DK=new Int32Array(1<<20),DG=new Int32Array(1<<20);let gen=0;
+function lzw(px){gen++;const out=[];let acc=0,nb=0,size=9,next=258;
+  const put=c=>{acc|=c<<nb;nb+=size;while(nb>=8){out.push(acc&255);acc>>>=8;nb-=8}};
+  put(256);let pre=px[0];
+  for(let i=1;i<px.length;i++){const c=px[i],k=(pre<<8)|c;
+    if(DG[k]===gen){pre=DK[k];continue}
+    put(pre);
+    if(next===4096){put(256);next=258;size=9;gen++}else{if(next>=(1<<size))size++;DG[k]=gen;DK[k]=next++}
+    pre=c}
+  put(pre);put(257);if(nb>0)out.push(acc&255);return Uint8Array.from(out)}
+function makePal(cnt,sr,sg,sb){const items=[];for(let k=0;k<32768;k++)if(cnt[k])items.push(k);const boxes=[items];
+  while(boxes.length<256){let bi=-1,bs=0,bc=0;
+    boxes.forEach((b,i)=>{if(b.length<2)return;const mn=[31,31,31],mx=[0,0,0];for(const k of b){const c=[k>>10,(k>>5)&31,k&31];for(let j=0;j<3;j++){if(c[j]<mn[j])mn[j]=c[j];if(c[j]>mx[j])mx[j]=c[j]}}for(let j=0;j<3;j++){const r=mx[j]-mn[j];if(r>bs){bs=r;bi=i;bc=j}}});
+    if(bi<0)break;
+    const b=boxes[bi],sh=[10,5,0][bc];b.sort((x,y)=>((x>>sh)&31)-((y>>sh)&31));
+    let tot=0;for(const k of b)tot+=cnt[k];let acc=0,m=0;for(;m<b.length-2;m++){acc+=cnt[b[m]];if(acc>=tot/2)break}
+    boxes.splice(bi,1,b.slice(0,m+1),b.slice(m+1))}
+  const pal=new Uint8Array(768);boxes.forEach((b,i)=>{let n=0,r=0,g=0,l=0;for(const k of b){n+=cnt[k];r+=sr[k];g+=sg[k];l+=sb[k]}if(n){pal[i*3]=Math.round(r/n);pal[i*3+1]=Math.round(g/n);pal[i*3+2]=Math.round(l/n)}});
+  return{pal,size:boxes.length}}
+function gifWriter(W,H,pal,loops){const parts=[],u16=n=>[n&255,(n>>8)&255];
+  parts.push(new Uint8Array([71,73,70,56,57,97,...u16(W),...u16(H),0xF7,0,0,...pal]));
+  if(loops===0||loops>1){
+    const repeat=loops===0?0:loops-1;
+    parts.push(new Uint8Array([33,255,11,...[...'NETSCAPE2.0'].map(c=>c.charCodeAt(0)),3,1,...u16(repeat),0]));
+  }
+  return{frame(idx,cs){parts.push(new Uint8Array([33,249,4,4,...u16(cs),0,0,44,0,0,0,0,...u16(W),...u16(H),0,8]));const d=lzw(idx);for(let i=0;i<d.length;i+=255){const c=d.subarray(i,i+255);parts.push(new Uint8Array([c.length]),c)}parts.push(new Uint8Array([0]))},
+    end(){parts.push(new Uint8Array([59]));return new Blob(parts,{type:'image/gif'})}}}
+function webpChunks(u){const v=new DataView(u.buffer,u.byteOffset,u.byteLength);let p=12;const keep=[];
+  while(p+8<=u.length){const t=String.fromCharCode(...u.subarray(p,p+4)),sz=v.getUint32(p+4,true),len=8+sz+(sz&1);if(t==='ALPH'||t==='VP8 '||t==='VP8L')keep.push(u.subarray(p,Math.min(p+len,u.length)));p+=len}
+  if(!keep.length)throw new Error('Unexpected WebP data.');return keep}
+function delayPlan(n,fps,unitMs){const total=Math.max(n,Math.round((n*1000/fps)/unitMs)),base=Math.floor(total/n),extra=total-base*n,out=new Array(n);let err=0;for(let i=0;i<n;i++){err+=extra;const add=err>=n?1:0;if(add)err-=n;out[i]=Math.max(1,base+add)}return out}
+function delayStats(plan,unitMs){const total=plan.reduce((a,b)=>a+b,0)*unitMs;return{ms:total,fps:plan.length/(total/1000)}}
+function muxWebp(frames,o){const u24=n=>[n&255,(n>>8)&255,(n>>16)&255],u32=n=>[n&255,(n>>8)&255,(n>>16)&255,(n>>>24)&255],T=t=>[...t].map(c=>c.charCodeAt(0));
+  const body=[];let total=4;const add=(t,pl)=>{const h=new Uint8Array([...T(t),...u32(pl.length)]);body.push(h,pl);total+=8+pl.length;if(pl.length&1){body.push(new Uint8Array(1));total++}};
+  const loopCount=o.loops===0?0:Math.max(0,o.loops-1),delays=o.delays||delayPlan(frames.length,o.fps,1);
+  add('VP8X',new Uint8Array([0x02|(o.tr?0x10:0),0,0,0,...u24(o.W-1),...u24(o.H-1)]));
+  add('ANIM',new Uint8Array([0,0,0,0,loopCount&255,(loopCount>>8)&255]));
+  frames.forEach((ch,i)=>{const len=ch.reduce((t,c)=>t+c.length,0),pl=new Uint8Array(16+len);pl.set([0,0,0,0,0,0,...u24(o.W-1),...u24(o.H-1),...u24(delays[i]||1),2]);let off=16;ch.forEach(c=>{pl.set(c,off);off+=c.length});add('ANMF',pl)});
+  return new Blob([new Uint8Array([...T('RIFF'),...u32(total),...T('WEBP')]),...body],{type:'image/webp'})}
+/*IMG-END*/
+let busy=false,cancel=false,exportDialogActive=false;
+function frameImg(W,H){const src=$('#player canvas');if(!src)throw new Error('Lottie canvas is not ready.');const copy=document.createElement('canvas');copy.width=W;copy.height=H;const ctx=copy.getContext('2d');if(!ctx)throw new Error('Canvas rendering is unavailable.');ctx.drawImage(src,0,0,W,H);return Promise.resolve(copy)}
+async function paint(ctx,o,i){if(cancel)throw new Error('Export cancelled.');S.anim.goToAndStop(i*o.tf/o.n,true);const img=await frameImg(o.W,o.H);
+  ctx.clearRect(0,0,o.W,o.H);if(!o.tr){ctx.fillStyle=o.bg;ctx.fillRect(0,0,o.W,o.H)}ctx.drawImage(img,0,0,o.W,o.H);await new Promise(r=>setTimeout(r,0))}
+const setProg=(t,i,n)=>{$('#progT').textContent=t;$('#progB').max=n;$('#progB').value=i};
+async function makeGif(o){const cv=document.createElement('canvas');cv.width=o.W;cv.height=o.H;const ctx=cv.getContext('2d',{willReadFrequently:true});
+  const cnt=new Float64Array(32768),sr=new Float64Array(32768),sg=new Float64Array(32768),sb=new Float64Array(32768),m=Math.min(o.n,8),key=(r,g,b)=>((r>>3)<<10)|((g>>3)<<5)|(b>>3);
+  for(let j=0;j<m;j++){setProg('Building palette',j,m);await paint(ctx,o,Math.floor(j*o.n/m));const px=ctx.getImageData(0,0,o.W,o.H).data;for(let p=0;p<px.length;p+=4){const k=key(px[p],px[p+1],px[p+2]);cnt[k]++;sr[k]+=px[p];sg[k]+=px[p+1];sb[k]+=px[p+2]}}
+  const{pal,size}=makePal(cnt,sr,sg,sb),lut=new Int16Array(32768).fill(-1),idx=new Uint8Array(o.W*o.H),gw=gifWriter(o.W,o.H,pal,o.loops),delays=o.delays||delayPlan(o.n,o.fps,10);
+  const near=k=>{const t=cnt[k]?[sr[k]/cnt[k],sg[k]/cnt[k],sb[k]/cnt[k]]:[(k>>10)*8+4,((k>>5)&31)*8+4,(k&31)*8+4];let best=0,bd=1e9;for(let c=0;c<size;c++){const d=(pal[c*3]-t[0])**2+(pal[c*3+1]-t[1])**2+(pal[c*3+2]-t[2])**2;if(d<bd){bd=d;best=c}}return best};
+  for(let i=0;i<o.n;i++){setProg('Encoding GIF '+(i+1)+'/'+o.n,i,o.n);await paint(ctx,o,i);const px=ctx.getImageData(0,0,o.W,o.H).data;
+    for(let p=0,q=0;p<px.length;p+=4,q++){const k=key(px[p],px[p+1],px[p+2]);let c=lut[k];if(c<0)c=lut[k]=near(k);idx[q]=c}gw.frame(idx,delays[i]||1)}
+  return gw.end()}
+async function makeWebp(o){const cv=document.createElement('canvas');cv.width=o.W;cv.height=o.H;const ctx=cv.getContext('2d'),frames=[];
+  for(let i=0;i<o.n;i++){setProg('Encoding WebP '+(i+1)+'/'+o.n,i,o.n);await paint(ctx,o,i);
+    const b=await new Promise(r=>cv.toBlob(r,'image/webp',o.q/100));if(!b||b.type!=='image/webp')throw new Error('This browser cannot encode WebP. Try Chrome, Edge, or Firefox.');
+    frames.push(webpChunks(new Uint8Array(await b.arrayBuffer())))}
+  return muxWebp(frames,o)}
+function imgForm(){
+  let data=S.data;
+  let saved=ui.x||{};
+  let box=document.createElement('div');
+  let grid=document.createElement('div');
+  grid.className='grid2';
+
+  let field=function(id,labelText,element){
+    element.id='x-'+id;
+    let wrap=document.createElement('div');
+    wrap.className='field';
+    let label=document.createElement('label');
+    label.htmlFor=element.id;
+    label.textContent=labelText;
+    wrap.append(label,element);
+    grid.append(wrap);
+    return element;
+  };
+  let number=function(min,max,value){
+    let input=document.createElement('input');
+    input.type='number';input.min=min;input.max=max;input.step=1;input.value=value;
+    return input;
+  };
+
+  let format=field('fmt','Format',document.createElement('select'));
+  format.innerHTML='<option value="gif">GIF</option><option value="webp">Animated WebP</option>';
+  format.value=saved.fmt==='webp'?'webp':'gif';
+
+  let width=field('w','Width (px)',number(16,1920,Math.min(data.w,480)));
+  let fps=field('fps','Frame rate (fps)',number(1,60,Math.min(Math.max(1,Math.round(data.fr)),30)));
+  let quality=field('q','WebP quality (10–100)',number(10,100,clampInt(saved.q==null?90:saved.q,10,100)));
+  let background=field('bg','Background color',document.createElement('input'));
+  background.type='color';
+  background.value=/^#[0-9a-f]{6}$/i.test(saved.bg||'')?saved.bg:'#ffffff';
+
+  let loops=field('loops','Loop',document.createElement('select'));
+  loops.innerHTML='<option value="1">1×</option><option value="2">2×</option><option value="3">3×</option><option value="0">Auto-loop (∞)</option>';
+  loops.value=String(saved.loops==null?0:Math.max(0,Math.min(3,Number(saved.loops)||0)));
+
+  let transparentLabel=document.createElement('label');
+  let transparent=document.createElement('input');
+  transparent.type='checkbox';
+  transparent.checked=saved.tr!==false;
+  transparentLabel.className='chk';
+  transparentLabel.append(transparent,' Transparent (WebP only)');
+  grid.append(transparentLabel);
+
+  let caption=document.createElement('p');
+  caption.className='muted';
+  caption.textContent='Live preview · this preview loops continuously; the output loop setting applies to the exported file:';
+
+  let previewEl=document.createElement('div');
+  previewEl.className='pv';
+  previewEl.setAttribute('role','img');
+  previewEl.setAttribute('aria-label','Live export preview');
+  previewEl.style.aspectRatio=data.w+' / '+data.h;
+  previewEl.style.width='min(100%,360px)';
+
+  let info=document.createElement('p');
+  info.className='muted';
+  let previewAnim=null;
+  let dead=false;
+
+  let readOptions=function(){
+    let W=clampInt(width.value,16,1920);
+    let F=clampInt(fps.value,1,60);
+    let totalFrames=Math.max(1,Math.round(S.anim&&S.anim.totalFrames?S.anim.totalFrames:(data.op-data.ip)));
+    let frameCount=Math.max(1,Math.round(totalFrames/data.fr*F));
+    let loopCount=Math.max(0,Math.min(3,Number(loops.value)||0));
+    let unitMs=format.value==='gif'?10:1;
+    let delays=delayPlan(frameCount,F,unitMs);
+    let stats=delayStats(delays,unitMs);
+    let H=Math.max(1,Math.round(W*data.h/data.w));
+    return {
+      fmt:format.value,W:W,H:H,fps:F,tf:totalFrames,n:frameCount,
+      q:clampInt(quality.value,10,100),bg:background.value,
+      tr:format.value==='webp'&&transparent.checked,loops:loopCount,
+      unitMs,delays,effectiveFps:stats.fps,duration:stats.ms/1000
+    };
+  };
+
+  let estimate=function(options){
+    let pixels=options.W*options.H;
+    let base=options.fmt==='gif'?0.11:0.075;
+    let qFactor=options.fmt==='gif'?1:(0.55+0.45*(options.q/100));
+    let complexity=Math.min(2.5,0.72+(data.layers.length*0.035)+(data.assets?.length||0)*0.06);
+    return Math.max(512,Math.round(pixels*options.n*base*qFactor*complexity+1200));
+  };
+  let bytes=function(n){return n<1024?(n+' B'):n<1048576?((n/1024).toFixed(1)+' KB'):((n/1048576).toFixed(2)+' MB')};
+
+  let destroyPreview=function(){
+    if(previewAnim){try{previewAnim.pause()}catch(_e){}try{previewAnim.destroy()}catch(_e){}}
+    previewAnim=null;
+    previewEl.replaceChildren();
+  };
+
+  let activate=function(){
+    if(dead||!window.DotLottie)return;
+    destroyPreview();
+    let canvas=document.createElement('canvas');canvas.width=Math.max(1,Math.round(data.w));canvas.height=Math.max(1,Math.round(data.h));canvas.style.width='100%';canvas.style.height='100%';previewEl.append(canvas);
+    previewAnim=new DotLottie({canvas,data:JSON.stringify(preview()),autoplay:false,loop:true,speed:clampInt(ui.speed,10,300)/100,mode:ui.rev?'reverse':'forward',layout:{fit:'contain',align:[.5,.5]},renderConfig:{autoResize:false,devicePixelRatio:1,freezeOnOffscreen:false}});
+    let instance=previewAnim;
+    instance.addEventListener('loadError',function(e){if(!dead&&previewAnim===instance)toast('Export preview could not load. '+(e&&e.error&&e.error.message||''),'error')});
+    instance.addEventListener('load',function(){
+      if(dead||previewAnim!==instance)return;
+      instance.setFrame(ui.rev?Math.max(0,instance.totalFrames-1):0);instance.play();
+    });
+  };
+
+  let update=function(){
+    if(dead)return;
+    let options=readOptions();
+    let isGif=options.fmt==='gif';
+    quality.disabled=isGif;
+    transparent.disabled=isGif;
+    background.disabled=options.tr;
+    previewEl.style.backgroundColor=options.tr?'':options.bg;
+    previewEl.style.backgroundImage=options.tr?'':'none';
+    if(previewAnim){
+      previewAnim.setLoop(true);
+      ui.speed=clampInt(ui.speed,10,300);previewAnim.setSpeed(ui.speed/100);
+      previewAnim.setMode(ui.rev?'reverse':'forward');
+    }
+    let total=options.loops===0?'∞':(options.duration*options.loops).toFixed(2)+' s';
+    let fpsText=Math.abs(options.effectiveFps-options.fps)<0.01?options.effectiveFps.toFixed(2):options.effectiveFps.toFixed(2)+' effective';
+    info.textContent=options.n+' frames · '+options.W+'×'+options.H+' px · '+options.fps+' fps ('+fpsText+') · '+options.duration.toFixed(2)+' s/play · total '+total+' · est. '+bytes(estimate(options))+(isGif?' · GIF fills transparency with the background.':'');
+  };
+
+  box.append(caption,previewEl,grid,info);
+  box.addEventListener('input',update);
+  box.addEventListener('change',update);
+  update();
+
+  return {
+    box:box,
+    activate:activate,
+    destroy:function(){dead=true;destroyPreview();box.remove()},
+    read:function(){
+      let options=readOptions();
+      ui.x={fmt:options.fmt,bg:options.bg,tr:transparent.checked,q:options.q,loops:options.loops};
+      return options;
+    }
+  };
+}
+
+async function exportImage(){
+  if(busy)return toast('An export is already running.','warn');
+  if(exportDialogActive)return;
+  if(!S.data)return toast('Load a Lottie animation before exporting.','error');
+  if(!S.ready)return toast('Wait for the animation renderer to finish loading before exporting.','warn');
+  if(!window.DotLottie)return toast('LottieFiles renderer is not ready. Check your internet connection and reload the page.','error');
+
+  let modal=$('#imgDlg');
+  let yes=$('#imgDlgOk');
+  let no=$('#imgDlgNo');
+  if(!modal||!yes||!no)return toast('Export controls are unavailable. Reload the page.','error');
+  if(typeof modal.showModal!=='function')return toast('Your browser cannot open the export popup.','error');
+
+  let form=null;
+  let accepted=false;
+  let dialogError=null;
+  let opened=false;
+  let options=null;
+  let button=$('#expi');
+  let body=$('#imgDlgB');
+  exportDialogActive=true;
+  button.disabled=true;
+  try{
+    let ok=await new Promise(function(resolve){
+      let settled=false;
+      let finish=function(result){
+        if(settled)return;
+        settled=true;
+        modal.removeEventListener('close',onClose);
+        yes.onclick=null;
+        no.onclick=null;
+        resolve(result);
+      };
+      let onClose=function(){finish(accepted)};
+      yes.disabled=true;
+      body.replaceChildren(P('Preparing export settings…'));
+      modal.addEventListener('close',onClose);
+      yes.onclick=function(){if(!form)return;accepted=true;if(modal.open)modal.close();else finish(true)};
+      no.onclick=function(){accepted=false;if(modal.open)modal.close();else finish(false)};
+      try{
+        modal.showModal();
+        opened=true;
+      }catch(e){
+        dialogError=e;
+        finish(false);
+        return;
+      }
+      try{
+        form=imgForm();
+        body.replaceChildren(form.box);
+        yes.disabled=false;
+        requestAnimationFrame(function(){
+          if(!form||!modal.open)return;
+          try{form.activate()}catch(e){
+            dialogError=e;
+            form.destroy();
+            form=null;
+            yes.disabled=true;
+            body.replaceChildren(P('The live preview could not be initialized. Close this window and try again.'));
+            toast('Could not start export preview. '+(e&&e.message?e.message:'Preview error.'),'error');
+          }
+        });
+      }catch(e){
+        dialogError=e;
+        yes.disabled=true;
+        body.replaceChildren(P('Export settings could not be initialized. Close this window and try again.'));
+        toast('Could not open export settings. '+(e&&e.message?e.message:'Settings error.'),'error');
+      }
+    });
+    if(dialogError){
+      if(!opened)toast('Unable to open export popup. '+(dialogError&&dialogError.message?dialogError.message:'Dialog error.'),'error');
+      return;
+    }
+    if(!ok)return;
+    if(!form)return toast('Export settings are unavailable. Close the popup and try again.','error');
+    options=form.read();
+  }catch(e){
+    toast('Could not read export settings. '+(e&&e.message?e.message:'Unknown error.'),'error');
+    return;
+  }finally{
+    if(modal.open)modal.close();
+    yes.onclick=null;
+    no.onclick=null;
+    yes.disabled=false;
+    if(form)form.destroy();
+    body.replaceChildren();
+    exportDialogActive=false;
+    button.disabled=false;
+  }
+
+  if(!options)return;
+  if(options.n>400)return toast('Too many frames ('+options.n+'). Lower the frame rate; the limit is 400.','error');
+
+  let animation=S.anim;
+  if(!animation)return toast('The animation player is not ready for rendering.','error');
+  let savedFrame=Math.round(animation.currentFrame);
+  let wasPlaying=!animation.isPaused;
+  busy=true;
+  cancel=false;
+  $('#expi').disabled=true;
+  $('#expi').setAttribute('aria-busy','true');
+  animation.pause();
+  $('#prog').hidden=false;
+  setProg('Preparing',0,options.n);
+
+  try{
+    let blob=options.fmt==='gif'?await makeGif(options):await makeWebp(options);
+    let extension=options.fmt==='gif'?'.gif':'.webp';
+    let filename=cleanName(S.name,extension);
+    let url=URL.createObjectURL(blob);
+    let link=document.createElement('a');
+    link.href=url;link.download=filename;document.body.append(link);link.click();link.remove();
+    setTimeout(function(){URL.revokeObjectURL(url)},1000);
+    toast(filename+' ('+(blob.size/1024).toFixed(0)+' KB) download started','ok');
+  }catch(e){
+    toast(e&&e.message?e.message:'Export failed.',e&&e.message==='Export cancelled.'?'info':'error');
+  }finally{
+    busy=false;
+    $('#expi').disabled=false;
+    $('#expi').removeAttribute('aria-busy');
+    $('#prog').hidden=true;
+    animation.goToAndStop(savedFrame,true);
+    if(wasPlaying)animation.play();
+    btn();
+  }
+}
+
+function applyBg(){const vp=$('#viewport');vp.style.backgroundColor=ui.tr?'transparent':ui.bg;vp.style.backgroundImage='none'}
+function setTheme(t){ui.theme=t;document.documentElement.dataset.theme=t;$('#theme').textContent=t==='dark'?'Light':'Dark';saveSession()}
+const net=()=>{const o=navigator.onLine;$('#net').className=o?'on':'off';$('#netT').textContent=o?'Online':'Offline'};
+
+/* events */
+$('#theme').onclick=()=>setTheme(ui.theme==='dark'?'light':'dark');
+addEventListener('online',net);addEventListener('offline',net);addEventListener('resize',()=>fitViewport());
+$('#imp').onclick=()=>$('#file').click();
+$('#file').onchange=e=>{importFile(e.target.files[0]);e.target.value=''};
+const st=$('#stage');
+st.addEventListener('dragover',e=>{e.preventDefault();st.classList.add('drag')});
+st.addEventListener('dragleave',()=>st.classList.remove('drag'));
+st.addEventListener('drop',e=>{e.preventDefault();st.classList.remove('drag');importFile(e.dataTransfer.files[0])});
+$('#sample').onclick=()=>load(SAMPLE(),'bouncing-ball.json',false);
+$('#copy').onclick=async()=>{try{await navigator.clipboard.writeText(JSON.stringify(S.data));toast('Copied to clipboard','ok')}catch(e){toast('Unable to copy. Please copy manually.','error')}};
+$('#exp').onclick=()=>exportFile('json');
+$('#expl').onclick=()=>exportFile('lottie');
+$('#expi').onclick=exportImage;
+$('#progX').onclick=()=>{cancel=true};
+$('#reset').onclick=async()=>{if(await ask('Reset all changes?',P('Your edits will be discarded and the originally loaded animation restored.'),'Reset Changes',true)){S.data=JSON.parse(S.orig);S.edited=false;commit(true);toast('Changes reset','ok')}};
+$('#play').onclick=()=>{const a=S.anim;if(!a||!S.ready)return;if(a.isPaused){let f=Math.max(0,Math.min(Math.round(a.currentFrame),Math.max(0,Math.round(a.totalFrames)-1)));if(!ui.loop&&((!ui.rev&&f>=a.totalFrames-1)||(ui.rev&&f<=0)))f=ui.rev?a.totalFrames-1:0;a.goToAndPlay(f,true)}else a.pause();btn()};
+$('#refreshAnim').onclick=()=>{if(!S.data)return;if(!window.DotLottie)return toast('LottieFiles renderer is not ready. Check your internet connection and reload the page.','error');const frames=Math.max(1,Math.round(S.data.op-S.data.ip));const start=ui.rev?frames-1:0;try{mount(start,true);toast('Animation reloaded and playback started.','ok')}catch(e){toast('Could not reload animation. '+(e.message||'Player error.'),'error')}};
+$('#stop').onclick=()=>{const a=S.anim;if(a&&S.ready){a.goToAndStop(ui.rev?a.totalFrames-1:0,true);btn()}};
+$('#scrub').oninput=e=>{const a=S.anim;if(a&&S.ready){a.pause();a.goToAndStop(+e.target.value,true);btn()}};
+$('#speed').oninput=e=>{ui.speed=clampInt(e.target.value,10,300);$('#spv').textContent=ui.speed+'%';if(S.anim)S.anim.setSpeed(ui.speed/100);saveSession()};
+$('#loop').onchange=e=>{ui.loop=e.target.checked;if(S.anim)S.anim.loop=ui.loop;saveSession()};
+$('#rev').onchange=e=>{ui.rev=e.target.checked;if(S.anim)S.anim.setDirection(ui.rev?-1:1);saveSession()};
+$('#bg').oninput=e=>{ui.bg=e.target.value;ui.tr=false;$('#tr').checked=false;applyBg();saveSession()};
+$('#tr').onchange=e=>{ui.tr=e.target.checked;applyBg();saveSession()};
+$('#comp').addEventListener('change',e=>{const k=e.target.dataset.k,d=S.data;if(!k)return;const v=e.target.value;
+  if(k==='fr')d.fr=clampInt(v,1,120);else if(k==='w'||k==='h'){const oldW=d.w,oldH=d.h;if(k==='w')d.w=clampInt(v,1,4096);else d.h=clampInt(v,1,4096);centerRootLayers(d.layers,(d.w-oldW)/2,(d.h-oldH)/2)}
+  else{const old=d.op;d.op=d.ip+clampInt(v,1,10000);d.layers.forEach(l=>{if(l.op===old)l.op=d.op})}
+  commit()});
+$('#pal').addEventListener('change',e=>{const h=e.target.dataset.h;if(!h)return;const refs=colorMap(S.data).get(h)||[],n=fromHex(e.target.value);refs.forEach(c=>{c.k=[n[0],n[1],n[2],c.k.length>3?c.k[3]:1]});commit()});
+$('#lay').addEventListener('click',e=>{const b=e.target.closest('button[data-i]');if(!b)return;const l=S.data.layers[+b.dataset.i];if(l.hd)delete l.hd;else l.hd=true;commit()});
+$('#jd').addEventListener('toggle',()=>{if($('#jd').open)$('#json').value=JSON.stringify(S.data,null,1)});
+$('#apply').onclick=()=>{try{load(JSON.parse($('#json').value),S.name)}catch(e){toast('Invalid JSON. Check the syntax and try again.','error')}};
+
+/* info popovers */
+const TIPS={fr:'Frames per second. A higher value plays the same frames faster and smoother. Range 1–120.',speed:'Preview speed only; it is not saved in the file. 100% is normal, 50% is half speed. Range 10–300.',pal:'Static fill and stroke colors in the file. Changing one recolors every shape that uses it. Animated colors are not listed.'};
+let popBtn=null;const pop=$('#pop');
+function closePop(){pop.hidden=true;if(popBtn)popBtn.setAttribute('aria-expanded','false');popBtn=null}
+document.addEventListener('click',e=>{const b=e.target.closest('.info');if(!b){closePop();return}e.preventDefault();e.stopPropagation();if(popBtn===b){closePop();return}closePop();popBtn=b;b.setAttribute('aria-expanded','true');pop.textContent=TIPS[b.dataset.t];pop.hidden=false;const r=b.getBoundingClientRect();pop.style.left=Math.max(8,Math.min(r.left-100,innerWidth-pop.offsetWidth-8))+'px';pop.style.top=(r.bottom+6)+'px'});
+document.addEventListener('keydown',e=>{if(e.key==='Escape')closePop()});
+
+/* init */
+restoreSession();
+ui.speed=clampInt(ui.speed,10,300);ui.loop=ui.loop!==false;ui.rev=!!ui.rev;
+$('#speed').value=ui.speed;$('#spv').textContent=ui.speed+'%';$('#loop').checked=ui.loop;$('#rev').checked=ui.rev;$('#bg').value=ui.bg;$('#tr').checked=ui.tr;
+setTheme(ui.theme||(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'));applyBg();net();
+if(!S.data){S.data=SAMPLE();S.orig=JSON.stringify(S.data)}
+if(!window.DotLottie)addEventListener('dotlottie-ready',()=>{if(window.DotLottie&&S.data){$('#err').hidden=true;const frames=Math.max(1,Math.round(S.data.op-S.data.ip));mount(ui.rev?frames-1:0,false)}},{once:true});
+addEventListener('dotlottie-error',()=>{if(!window.DotLottie){$('#err').hidden=false;$('#loadState').hidden=true;toast('Could not load the LottieFiles runtime. Check your internet connection.','error')}});
+commit(true,false);
+addEventListener('pagehide',flushSession);
+})();
+</script>
+</body>
+</html>
